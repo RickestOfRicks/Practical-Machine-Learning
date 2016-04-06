@@ -4,8 +4,9 @@ author: "Richard Berry"
 date: "2 April 2016"
 output: html_document
 ---
+#Synopsis
 
-##Data
+##1.1 Data
 
 The training data for this project are available here:
 
@@ -17,11 +18,250 @@ https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
 
 The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
 
-###Background for the project
+##1.2 Background for the project
 
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
 
-##Project Question
+##1.3 Project Question
 
 The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
 
+####In it's simplest form, the goal of this project is to predict how participants conducted their exercise.
+
+We will be investigating this as we continue.
+
+#Preparation
+
+##2.1 Loading Packages
+
+````{r} 
+library(caret)
+library(randomForest)
+library(rattle)
+library(RColorBrewer)
+library(rpart)
+library(rpart.plot)
+
+```
+
+Make sure to set the seed to be able to reproduce the data.
+````{r}
+set.seed(12345)
+````
+##2.2 Getting the data ready
+
+We can download fresh data through the following code:
+
+````{r, eval = FALSE}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+````
+All the data was not collected by me. I have simply downloaded it from http://groupware.les.inf.puc-rio.br/har. All credit goes to them.
+
+I do not have the best internet connection to be continuously redownloading the files, so I have saved them to my wd() and am going to load them as follows:
+
+````{r}
+setwd("C:\\Users\\Rick\\Documents\\GitHub\\Practical-Machine-Learning\\Data")
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+````
+
+##2.3 A brief summary of the data
+
+Before we delve too deeply into the data, we should explore what we have. 
+
+````{r}
+dim(training)
+dim(testing)
+````
+
+We split the data in a 60:40 ratio for myTraining:myTesting from the loaded "training" data. We want to train our algorith on the "training" data so we can then apply it to the "testing" data.
+
+````{r}
+toTrain <- createDataPartition(training$classe, p=0.6, list=FALSE)
+myTraining <- training[toTrain, ]
+myTesting <- training[-toTrain, ]
+dim(myTraining)
+dim(myTesting)
+````
+
+Now that we have split the "training" data into 2 subgroups we can remove some of the remaining 160 columns. We know that not every column in this data set contains data that is esssential for our analysis. We are going to trim and clean our data to contain only that which is needed.
+
+````{r}
+nzv <- nearZeroVar(myTraining, saveMetrics=TRUE)
+myTraining <- myTraining[,nzv$nzv==FALSE]
+
+nzv<- nearZeroVar(myTesting,saveMetrics=TRUE)
+myTesting <- myTesting[,nzv$nzv==FALSE]
+
+myTraining <- myTraining[c(-1)]
+
+temp <- myTraining
+for(i in 1:length(myTraining)) {
+    if( sum( is.na( myTraining[, i] ) ) /nrow(myTraining) >= .7) {
+        for(j in 1:length(temp)) {
+            if( length( grep(names(myTraining[i]), names(temp)[j]) ) == 1)  {
+                temp <- temp[ , -j]
+            }   
+        } 
+    }
+}
+
+myTraining <- temp
+index1 <- colnames(myTraining)
+index2 <- colnames(myTraining[, -58])
+myTesting <- myTesting[index1]
+testing <- testing[index2]
+
+dim(myTesting)
+dim(testing)
+````
+
+We have now removed all the unessential data from our Testing cases. We have to check whether the data now shares the same class as that of the "testing" data loaded at the start.
+
+````{r}
+for (i in 1:length(testing) ) 
+{
+    for(j in 1:length(myTraining)) 
+    {
+        if( length( grep(names(myTraining[i]), names(testing)[j]) ) == 1)  
+        {
+            class(testing[j]) <- class(myTraining[i])
+        }      
+    }      
+}
+testing <- rbind(myTraining[2, -58] , testing)
+testing <- testing[-1,]
+````
+
+#Results
+
+##3.1 Decision Tree
+
+We can now apply different predicting methods to our "testing" case that we loaded at the start and see how well this machine learning procedure can cope with it.
+
+````{r}
+modelFit <- rpart(classe ~ ., data=myTraining, method="class")
+fancyRpartPlot(modelFit)
+
+````
+
+###3.2.1 Decision Tree Results
+````{r,eval = FALSE}
+predRpart <- predict(modelFit, myTesting, type = "class")
+confusionMatrix(predRpart, myTesting$classe)
+````
+I could not get this code to run on my laptop and the original project was done on my PC which got damaged, hence I had to print these values.
+````{r}
+## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2150   60    7    1    0
+##          B   61 1260   69   64    0
+##          C   21  188 1269  143    4
+##          D    0   10   14  857   78
+##          E    0    0    9  221 1360
+## 
+## Overall Statistics
+##                                         
+##                Accuracy : 0.879         
+##                  95% CI : (0.871, 0.886)
+##     No Information Rate : 0.284         
+##     P-Value [Acc > NIR] : <2e-16        
+##                                         
+##                   Kappa : 0.847         
+##  Mcnemar's Test P-Value : NA            
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity             0.963    0.830    0.928    0.666    0.943
+## Specificity             0.988    0.969    0.945    0.984    0.964
+## Pos Pred Value          0.969    0.867    0.781    0.894    0.855
+## Neg Pred Value          0.985    0.960    0.984    0.938    0.987
+## Prevalence              0.284    0.193    0.174    0.164    0.184
+## Detection Rate          0.274    0.161    0.162    0.109    0.173
+## Detection Prevalence    0.283    0.185    0.207    0.122    0.203
+## Balanced Accuracy       0.976    0.900    0.936    0.825    0.954
+
+#Overall Statistics
+                                          
+#               Accuracy : 0.8683          
+#                 95% CI : (0.8607, 0.8757)
+#    No Information Rate : 0.2845          
+#    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+#                  Kappa : 0.8335 
+
+````
+
+###3.2.2 Random Forests results
+
+````{r, eval = FALSE}
+modelFit <- randomForest(classe ~. , data=myTraining)
+predRF <- predict(modelFit, myTesting, type = "class")
+confusionMatrix(predRF, myTesting$classe)
+````
+````{r}
+## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2231    2    0    0    0
+##          B    1 1516    2    0    0
+##          C    0    0 1366    3    0
+##          D    0    0    0 1282    2
+##          E    0    0    0    1 1440
+## 
+## Overall Statistics
+##                                         
+##                Accuracy : 0.999         
+##                  95% CI : (0.997, 0.999)
+##     No Information Rate : 0.284         
+##     P-Value [Acc > NIR] : <2e-16        
+##                                         
+##                   Kappa : 0.998         
+##  Mcnemar's Test P-Value : NA            
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity             1.000    0.999    0.999    0.997    0.999
+## Specificity             1.000    1.000    1.000    1.000    1.000
+## Pos Pred Value          0.999    0.998    0.998    0.998    0.999
+## Neg Pred Value          1.000    1.000    1.000    0.999    1.000
+## Prevalence              0.284    0.193    0.174    0.164    0.184
+## Detection Rate          0.284    0.193    0.174    0.163    0.184
+## Detection Prevalence    0.285    0.194    0.174    0.164    0.184
+## Balanced Accuracy       1.000    0.999    0.999    0.998    0.999
+
+#Overall Statistics
+#              Accuracy : 0.999          
+#                95% CI : (0.998, 0.9996)
+#   No Information Rate : 0.2845         
+#   P-Value [Acc > NIR] : < 2.2e-16      
+                                       
+#                 Kappa : 0.9987         
+#Mcnemar's Test P-Value : NA 
+````
+
+##Conclusion
+
+From these results we can see that the Random Forests prediction method better predicted how the exercises were done. We have accuracy within the 99th percentile from this prediction method comparred to the 87th percentil via Decision Tree
+
+From this we will apply the Random Forests method to the "testing" data loaded from the start:
+
+````{r, eval = FALSE}
+modelFit <- randomForest(classe ~. , data=testing)
+finalPred <- predict(modelFit, testing, type = "class")
+confusionMatrix(finalPred, testing$classe)
+````
+
+This yields a result of the following predictions for the 20 part test data:
+
+B A A A A E D B A A B C B A E E A B B B
+
+I hope this is correct as I have no way to test how it will compare to the result of other students.
