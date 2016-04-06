@@ -259,9 +259,10 @@ modelFit <- randomForest(classe ~. , data=testing)
 finalPred <- predict(modelFit, testing, type = "class")
 confusionMatrix(finalPred, testing$classe)
 ````
-
+##From the above data, I have predict that the Out of Sample error rate will be 5% when combining the two methods. Random Forest will yield a 1% out of sample rate. I predict that my values will score me 19/20 for the test.
 This yields a result of the following predictions for the 20 part test data:
 
 B A A A A E D B A A B C B A E E A B B B
 
+I received 19/20 Credit from the post assignment quiz as I had predicted. This is very amazing to me. 
 I hope this is correct as I have no way to test how it will compare to the result of other students.
